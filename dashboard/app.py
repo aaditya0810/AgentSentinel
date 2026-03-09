@@ -93,7 +93,23 @@ if prompt := st.sidebar.chat_input("Ask about AgentSentinel..."):
                 Keep responses concise, highly professional, and technical but easy to understand.
                 """
                 
-                model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_prompt)
+                # Try multiple models in case one is restricted or not found in the region
+                model_names = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                model = None
+                
+                for m_name in model_names:
+                    try:
+                        model = genai.GenerativeModel(m_name, system_instruction=system_prompt)
+                        # Test if model is accessible
+                        test_resp = model.generate_content("ping", generation_config={"max_output_tokens": 1})
+                        if test_resp:
+                            break
+                    except Exception:
+                        continue
+                
+                if not model:
+                    st.error("Could not find an available Gemini model. Please check your API key permissions.")
+                    st.stop()
                 
                 prompt_text = ""
                 for msg in st.session_state.messages:
