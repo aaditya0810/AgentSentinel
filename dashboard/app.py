@@ -93,8 +93,13 @@ if prompt := st.sidebar.chat_input("Ask about AgentSentinel..."):
                 Keep responses concise, highly professional, and technical but easy to understand.
                 """
                 
-                # Try multiple models in case one is restricted or not found in the region
-                model_names = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                # Updated model list based on exhaustive diagnostics of this specific API key
+                model_names = [
+                    "models/gemini-2.0-flash", 
+                    "models/gemini-flash-latest", 
+                    "models/gemini-2.5-flash", 
+                    "gemini-1.5-flash"
+                ]
                 model = None
                 
                 for m_name in model_names:
