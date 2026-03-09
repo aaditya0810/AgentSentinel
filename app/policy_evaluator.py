@@ -30,6 +30,7 @@ class ToolCallResponse(BaseModel):
     message: str
     action_allowed: bool
     hallucination_score: Optional[float] = None
+    threat_profile: Optional[Dict[str, float]] = None
 
 def evaluate_policy(request: ToolCallRequest) -> None:
     """
@@ -81,14 +82,16 @@ async def intercept_tool_call(request: ToolCallRequest):
             status="blocked_by_auditor",
             message=f"Reasoning Audit Failed. Reason: {auditor_response['reasoning']}",
             action_allowed=False,
-            hallucination_score=auditor_response["hallucination_score"]
+            hallucination_score=auditor_response["hallucination_score"],
+            threat_profile=auditor_response.get("threat_profile")
         )
     
     return ToolCallResponse(
         status="approved",
         message=f"Tool call passed Policy Engine and Auditor. Auditor note: {auditor_response['reasoning']}",
         action_allowed=True,
-        hallucination_score=auditor_response["hallucination_score"]
+        hallucination_score=auditor_response["hallucination_score"],
+        threat_profile=auditor_response.get("threat_profile")
     )
 
 if __name__ == "__main__":

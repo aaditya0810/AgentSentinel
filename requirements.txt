@@ -4,3 +4,8 @@ pydantic
 PyYAML
 requests
 pytest
+streamlit
+pandas
+plotly
+google-generativeai
+python-dotenv

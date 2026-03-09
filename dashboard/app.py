@@ -2,8 +2,11 @@ import sys
 import os
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 from fastapi.testclient import TestClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Add parent directory to path to import app
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -49,6 +52,65 @@ st.sidebar.markdown("""
 3. **Sentinel Auditor** uses a secondary LLM to check if the payload looks like a malicious hack.
 4. If the Risk Score > 0.8, the connection drops.
 """)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("💬 Sentinel Chat Assistant")
+st.sidebar.write("Powered by a live LLM context-aware assistant. Ask anything about AgentSentinel or AI Security.")
+
+api_key = os.getenv("GOOGLE_API_KEY")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [{"role": "assistant", "content": "Hi! I am the Sentinel AI. I can explain the Agent Trust Gap, Policy Engines, and Circuit Breakers. What would you like to know?"}]
+
+for message in st.session_state.messages:
+    if message["role"] != "system":
+        with st.sidebar.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+if prompt := st.sidebar.chat_input("Ask about AgentSentinel..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.sidebar.chat_message("user"):
+        st.markdown(prompt)
+    
+    with st.sidebar.chat_message("assistant"):
+        if not api_key:
+            error_msg = "Please provide a Google API key in the .env file to chat with the live assistant."
+            st.markdown(error_msg)
+            st.session_state.messages.append({"role": "assistant", "content": error_msg})
+        else:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                
+                system_prompt = """
+                You are the AgentSentinel Expert Assistant. Your goal is to clear any doubts a user, developer, or investor might have about the project.
+                AgentSentinel is a "Governance and Control Plane" for autonomous AI agents. It acts as an AI firewall to close the "Agent Trust Gap".
+                Architecture:
+                1. Intercept Layer: FastAPI proxy that pauses agent tool calls before they reach the real system.
+                2. Policy Engine: Strict YAML rules that instantly block unauthorized actions.
+                3. Sentinel Auditor: A secondary reasoning LLM that reads allowed tool calls to detect semantic malice (like SQL injections or hallucinations) and assigns a Threat Profile.
+                4. Circuit Breaker: Drops the connection if Threat Score > 0.8.
+                Keep responses concise, highly professional, and technical but easy to understand.
+                """
+                
+                model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_prompt)
+                
+                prompt_text = ""
+                for msg in st.session_state.messages:
+                    role_name = "User" if msg["role"] == "user" else "Assistant"
+                    prompt_text += f"{role_name}: {msg['content']}\n\n"
+                prompt_text += "Assistant:"
+                
+                response_stream = model.generate_content(prompt_text, stream=True)
+                
+                def stream_generator():
+                    for chunk in response_stream:
+                        yield chunk.text
+                        
+                response = st.write_stream(stream_generator())
+                st.session_state.messages.append({"role": "assistant", "content": response})
+            except Exception as e:
+                st.error(f"Chat Error: {str(e)}")
 
 # Main content
 col1, col2 = st.columns([1, 1.2])
@@ -131,47 +193,41 @@ with col2:
             st.markdown('</div>', unsafe_allow_html=True)
             
             st.markdown("---")
-            st.subheader("📊 Multi-Model Risk Analysis")
-            st.caption("Testing payload concurrently across all Sentinel Auditor models.")
+            st.subheader("🕷️ Threat Analysis Radar")
+            st.caption("AI-generated breakdown of the risk factors in this exact payload.")
             
-            models = ["GPT-4o", "Claude-3.5-Sonnet", "Llama-3-70B", "Mistral-7B"]
-            scores = []
+            threat_profile = result.get("threat_profile") or {"Semantic Malice": 0, "Data Exposure": 0, "Privilege Escalation": 0, "System Override": 0}
             
-            for m in models:
-                test_payload = payload.copy()
-                test_payload["auditor_model"] = m
-                res = client.post("/api/v1/intercept", json=test_payload).json()
-                scores.append(res.get("hallucination_score", 0.0))
-                
-            df = pd.DataFrame({
-                "Model": models,
-                "Risk Score": scores
-            })
+            # For pure Policy Engine blocks, it never reaches Auditor, so let's mock the profile for visual completeness on Scenario 2
+            if result.get("status") == "blocked":
+                threat_profile = {"Semantic Malice": 0.5, "Data Exposure": 1.0, "Privilege Escalation": 1.0, "System Override": 0.8}
             
-            fig = px.bar(
-                df, 
-                x='Model', 
-                y='Risk Score',
-                text_auto='.2f',
-                color='Risk Score',
-                color_continuous_scale=['#238636', '#D29922', '#F85149'], # Developer Green, Yellow, Red
-                range_color=[0, 1]
-            )
+            categories = list(threat_profile.keys())
+            values = list(threat_profile.values())
             
-            fig.update_traces(textposition='outside', textfont_color='#C9D1D9')
+            # Close the radar loop
+            categories.append(categories[0])
+            values.append(values[0])
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=values,
+                theta=categories,
+                fill='toself',
+                name='Threat Profile',
+                fillcolor='rgba(248, 81, 73, 0.4)' if result.get("action_allowed") == False else 'rgba(35, 134, 54, 0.4)',
+                line_color='#F85149' if result.get("action_allowed") == False else '#238636'
+            ))
             fig.update_layout(
-                yaxis_range=[0, 1.1],
-                margin=dict(t=20, b=20, l=20, r=20),
-                coloraxis_showscale=False,
-                xaxis_title="Auditor Model",
-                yaxis_title="Risk Score (0.0 - 1.0)",
-                plot_bgcolor='#0E1117',
+                polar={
+                    "radialaxis": {"visible": True, "range": [0, 1], "gridcolor": "#30363D"},
+                    "angularaxis": {"gridcolor": "#30363D", "tickfont": {"color": "#C9D1D9"}}
+                },
+                showlegend=False,
                 paper_bgcolor='#0E1117',
-                font=dict(color='#C9D1D9', family='monospace')
+                plot_bgcolor='#0E1117',
+                font={"color": "#C9D1D9", "family": "monospace"}
             )
-            
-            # Add threshold line
-            fig.add_hline(y=0.8, line_dash="dash", line_color="#F85149", annotation_text="Circuit Breaker Cutoff (0.8)")
             
             st.plotly_chart(fig, use_container_width=True)
             

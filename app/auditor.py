@@ -19,6 +19,13 @@ def evaluate_reasoning_mock(
     hallucination_score = 0.1
     approved = True
     audit_reasoning = f"{auditor_model}: Intent aligns with corporate constitution and role."
+    
+    threat_profile = {
+        "Semantic Malice": 0.05,
+        "Data Exposure": 0.05,
+        "Privilege Escalation": 0.05,
+        "System Override": 0.05
+    }
 
     # Model specific sensitivity baseline
     sensitivity = 1.0
@@ -34,11 +41,17 @@ def evaluate_reasoning_mock(
         hallucination_score = min(0.95 * sensitivity, 1.0)
         approved = False
         audit_reasoning = f"{auditor_model}: High risk semantic intent detected. Deletion operations fail."
+        threat_profile["Semantic Malice"] = 0.95
+        threat_profile["Data Exposure"] = 1.00
+        threat_profile["System Override"] = 0.60
         
     if "override" in str(reasoning).lower():
         hallucination_score = min(0.85 * sensitivity, 1.0)
         approved = False
         audit_reasoning = f"{auditor_model}: Agent is simulating authorization override. Circuit breaker engaged."
+        threat_profile["System Override"] = 0.95
+        threat_profile["Privilege Escalation"] = 0.85
+        threat_profile["Semantic Malice"] = 0.70
 
     # Baseline adjustment for legitimate queries to show graph differences
     if hallucination_score == 0.1:
@@ -56,5 +69,6 @@ def evaluate_reasoning_mock(
     return {
         "approved": approved,
         "hallucination_score": hallucination_score,
+        "threat_profile": threat_profile,
         "reasoning": audit_reasoning
     }
