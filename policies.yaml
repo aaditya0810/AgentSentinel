@@ -1,0 +1,32 @@
+# AgentSentinel policies configuration
+# Defines constraints and rules for agent tool calls
+
+constraints:
+  time_of_day:
+    # Allow actions 24/7 for the MVP, can be adjusted
+    allowed_start: "00:00"
+    allowed_end: "23:59"
+    action: "block"
+    message: "Action blocked: Outside permitted working hours."
+
+  budget:
+    max_daily_spend: 100.00
+    currency: "USD"
+    action: "block"
+    message: "Action blocked: Budget limit exceeded."
+
+roles:
+  basic_agent:
+    allowed_actions:
+      - "read_user_profile"
+      - "list_items"
+      - "generate_report"
+      - "query_database"
+    blocked_actions:
+      - "delete_user_database"
+      - "grant_admin_access"
+      - "initiate_refund"
+
+auditor_settings:
+  hallucination_threshold: 0.8  # If score > 0.8, Circuit Breaker trips
+  strict_mode: true
